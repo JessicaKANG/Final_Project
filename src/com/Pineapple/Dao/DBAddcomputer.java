@@ -81,5 +81,30 @@ public class DBAddcomputer implements DBConfig{
         }
         return false;// 如果发生异常返回false
     }
+    
+    /**
+     * 保存用户输入的商品信息
+     *
+     * @return：如果保存成功返回true，保存失败返回false
+     */
+    public static boolean savecomputerconfig(String computerID, String componentID) {
+        QueryRunner runner = new QueryRunner();// 创建QueryRunner对象
+        String sql = "insert into tb_computer_has_component (id_computer, id_component) values (?, ?);";// 定义查询语句
+        Connection conn = getConnection();// 获得连接
+        Object[] params = { computerID,componentID};// 获得传递的参数
+        try {
+            int result = runner.update(conn, sql, params);// 保存用户
+            if (result > 0) {// 如果保存成功返回true
+                return true;
+            } else {// 如果保存失败返回false
+                return false;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            DbUtils.closeQuietly(conn);// 关闭连接
+        }
+        return false;// 如果发生异常返回false
+    }
 
 }

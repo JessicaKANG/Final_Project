@@ -112,5 +112,32 @@ public class DBClientLogin implements DBConfig{
         }
         return false;// 如果发生异常返回false
     }
+    
+    public static String getEmail(String username){
+    	QueryRunner runner = new QueryRunner();// 创建QueryRunner对象       
+        Connection conn = getConnection();// 获得连接
+        String sql = "select email_client from tb_client where name_client = '"+username+"';";
+        try {
+			 String email = runner.query(conn, sql, new ScalarHandler<String>());
+			 return email;
+		} catch (SQLException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+			return null;
+		}// 获得查询结果
+    }
+	public static int getClientID(String name_client) {
+		QueryRunner runner = new QueryRunner();// 创建QueryRunner对象       
+        Connection conn = getConnection();// 获得连接
+        String sql = "select id_client from tb_client where name_client = '"+name_client+"';";
+        try {
+			 int id_client = (int) runner.query(conn, sql, new ScalarHandler<Integer>());
+			 return id_client;
+		} catch (SQLException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+			return 0;
+		}// 获得查询结果
+	}
 
 }
