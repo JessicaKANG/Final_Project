@@ -25,13 +25,16 @@ import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import javax.swing.JOptionPane;
 import com.Pineapple.Dao.DBAddorder;
+import com.Pineapple.Dao.DBCheckBag;
 import com.Pineapple.Dao.DBCheckcomponent;
 import com.Pineapple.Dao.DBCheckcomputer;
 import com.Pineapple.Dao.DBCheckstock;
 import com.Pineapple.Dao.DBClientLogin;
+import com.Pineapple.Dao.model.Bag;
 import com.Pineapple.Dao.model.Client;
 import com.Pineapple.Dao.model.Computer;
 import com.Pineapple.Dao.model.Order;
+import com.Pineapple.Dao.model.Order_detial;
 
 public class ServerThread implements Runnable {    
     
@@ -135,8 +138,8 @@ public class ServerThread implements Runnable {
 				}
            } 
            /////////////////////////////////////////////////////////////////////////////
-           else if(accept.equals("SHOWALL")){
-        	   System.out.println("接收到SHOWALL");
+           else if(accept.equals("SHOWALLCPR")){
+        	   System.out.println("接收到SHOWALLCPR");
         	   List<Computer> list = DBCheckcomputer.select();
 	        	   try {
 					outBean = new ObjectOutputStream(socket.getOutputStream());
@@ -149,18 +152,89 @@ public class ServerThread implements Runnable {
         	   
            }
            /////////////////////////////////////////////////////////////////////////////
+           else if(accept.equals("SHOWACTIVEORDER")){
+        	   System.out.println("接收到SHOWACTIVEORDER");        	           	   
+	        	   try {
+					in = new DataInputStream(socket.getInputStream());
+					String name_client = in.readUTF();
+					int id_client = DBClientLogin.getClientID(name_client);
+	        		outBean = new ObjectOutputStream(socket.getOutputStream());
+	        		List<Order> list = DBAddorder.getClientActiveOrder(id_client);
+					outBean.writeObject(list);
+					outBean.flush();										
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+        	   
+           }
+           else if(accept.equals("SHOWDEADORDER")){
+        	   System.out.println("接收到SHOWADEADORDER");        	           	   
+	        	   try {
+					in = new DataInputStream(socket.getInputStream());
+					String name_client = in.readUTF();
+					int id_client = DBClientLogin.getClientID(name_client);
+	        		outBean = new ObjectOutputStream(socket.getOutputStream());
+	        		List<Order> list = DBAddorder.getClientDeadOrder(id_client);
+					outBean.writeObject(list);
+					outBean.flush();										
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+        	   
+           }
+           /////////////////////////////////////////////////////////////////////////////
+           else if(accept.equals("BAG")){
+        	   System.out.println("BAG");
+        	   try {				
+				in = new DataInputStream(socket.getInputStream());
+				String name_client = (String) in.readUTF();
+				int id_client = DBClientLogin.getClientID(name_client);
+				inBean = new ObjectInputStream(socket.getInputStream());
+				List<Bag> baglist = (List<Bag>) inBean.readObject();
+				if(DBCheckBag.addtoBag(id_client,baglist)){
+					out = new DataOutputStream(socket.getOutputStream());
+	     			   out.writeUTF("True");
+	     			   out.flush();
+				}else{
+					out = new DataOutputStream(socket.getOutputStream());
+     			   out.writeUTF("False");
+     			   out.flush();
+				}
+			} catch (IOException | ClassNotFoundException e) {
+				e.printStackTrace();
+			}
+    		   
+           }
+           else if(accept.equals("SHOWALLBAG")){
+        	   System.out.println("接收到SHOWALLBAG");        	           	   
+	        	   try {
+					in = new DataInputStream(socket.getInputStream());
+					String name_client = in.readUTF();
+					int id_client = DBClientLogin.getClientID(name_client);
+	        		outBean = new ObjectOutputStream(socket.getOutputStream());
+	        		List<Bag> list = DBCheckBag.getClientBag(id_client);
+					outBean.writeObject(list);
+					outBean.flush();										
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+        	   
+           }
+           ////////////////////////////////////////////////////////////////////////////
            else if(accept.equals("ORDER")){
         	   System.out.println("接收到ORDER");
         	   
 	        	   try {
 	        		   inBean = new ObjectInputStream(socket.getInputStream());
-	        		   List<String> computerlist = (List<String>) inBean.readObject();
-	        		   List<String> componentlist = (List<String>) inBean.readObject();	        		  
-	        		   Iterator iterator = computerlist.iterator();
-	        		   while (iterator.hasNext()){
-	        			   String computerID = null;
-	        			   computerID = (String)iterator.next();	        			   
-	        			   check = DBCheckstock.checkcpr(computerID);
+	        		   Map<String,Integer> computermap = (Map<String,Integer>) inBean.readObject();
+	        		   Map<String,Integer> componentmap = (Map<String,Integer>) inBean.readObject();	        		  
+	        		   Iterator<Map.Entry<String, Integer>> entries = computermap.entrySet().iterator();
+	        		   while (entries.hasNext()){
+	        			   Entry<String, Integer> entry = entries.next();	        			   
+	        			   check = DBCheckstock.checkcpr(entry.getKey(),entry.getValue());
 	        			   if(!check){
 	        				   out = new DataOutputStream(socket.getOutputStream());
 		        			   out.writeUTF("False");
@@ -169,21 +243,7 @@ public class ServerThread implements Runnable {
 	        			   }
 	        		   }	        		   
 	        		   if (check){	//电脑库存核查完毕，开始核查配件库存
-	        			   Map<String,Integer> map = new HashMap<String,Integer>();        			   
-	        			   for (int m=0;m<componentlist.size();m++){//把componentlist 变成map
-	        				   int p = map.getOrDefault(componentlist.get(m), 0);
-	        				   if(p==0){
-	        					   map.put(componentlist.get(m), 1);
-	        					   for(int n=m+1;n<componentlist.size();n++){
-	        						   if(componentlist.get(n).equals(componentlist.get(m))){	        							
-	        							   int k = map.get(componentlist.get(m))+1;
-	        							   map.put(componentlist.get(m), k);
-	        						   }
-	        					   }
-	        					   
-	        				   }	        				  	        					   	        				           				   
-	        			   }
-	        			   Iterator<Map.Entry<String, Integer>> entries = map.entrySet().iterator();
+	        			   entries = componentmap.entrySet().iterator();
 	        			   while (entries.hasNext()){
 	        				   Entry<String, Integer> entry = entries.next();
 	        				   check = DBCheckstock.checkcpt(entry.getKey(), entry.getValue());	        				  
@@ -194,83 +254,12 @@ public class ServerThread implements Runnable {
 			        			   break;
 	        				   }
 	        			   }//配件库存和电脑库存都核查完毕
-	        			   
 	        			   if(check){
 	        				   out = new DataOutputStream(socket.getOutputStream());
-	        				   out.writeUTF("True");//核查库存后判断是否弹出付款对话框和更改库存
-	        				   out.flush();	
-		        			   Iterator iterator2 = computerlist.iterator();
-		        			   while(iterator2.hasNext()){
-		        				   String computerID = null;
-			        			   computerID = (String)iterator2.next();
-		        				   DBCheckstock.modifycpr(computerID);
-		        			   	}//电脑库存修改
-		        			   Iterator<Map.Entry<String, Integer>> entries2 = map.entrySet().iterator();
-		        			   while (entries2.hasNext()){
-		        				   Entry<String, Integer> entry2 = entries2.next();
-		        				   DBCheckstock.modifycpt(entry2.getKey(),entry2.getValue());
-		        			   }//配件库存修改
-		        			   System.out.println("库存修改完毕");
-		        			   inBean = new ObjectInputStream(socket.getInputStream());
-		        			   Order order = (Order)inBean.readObject();
-		        			   if(DBAddorder.save(order)){
-		        				   out.writeUTF("True");
-		        				   out.flush();	
-		        			/*	   JOptionPane.showMessageDialog(null,
-		   								"您有一条新订单待处理.", "订单提醒",
-		   								JOptionPane.INFORMATION_MESSAGE);*/
-		        				  ////////////////////////////////////////////////////////////////////////////
-		        				   //邮件发送订单详情
-		        				   	// 收件人电子邮箱
-		        				   	
-		        				      String to = DBClientLogin.getEmail(order.getClient());
-		        				      // 发件人电子邮箱
-		        				      String from = "computer.company.pineapple@gamil.com";
-		        				      // 指定发送邮件的主机为 localhost
-		        				      String host = "smtp.gmail.com";  // 邮件服务器
-		        				      // 获取系统属性
-		        				      Properties properties = System.getProperties();
-		        				      // 设置邮件服务器
-		        				      properties.setProperty("mail.smtp.host", host);
-		        				      properties.put("mail.smtp.auth", "true");
-		        				      properties.put("mail.smtp.starttls.enable", "true");
-		        				      properties.put("mail.smtp.port", "587");
-		        				      // 获取默认session对象
-		        				      Session session = Session.getDefaultInstance(properties,new Authenticator(){
-		        					    public PasswordAuthentication getPasswordAuthentication()
-		        					    {
-		        					     return new PasswordAuthentication("computer.company.pineapple@gmail.com", "pineapple123456"); //发件人邮件用户名、密码
-		        					    }
-		        					   });
-		        				      try{
-		        				         // 创建默认的 MimeMessage 对象
-		        				         MimeMessage message = new MimeMessage(session);
-		        				         // Set From: 头部头字段
-		        				         message.setFrom(new InternetAddress(from));
-		        				         // Set To: 头部头字段
-		        				         message.addRecipient(Message.RecipientType.TO,
-		        				                                  new InternetAddress(to));
-		        				         // Set Subject: 头部头字段
-		        				         message.setSubject("Order Confirmation");
-		        				         // 设置消息体
-		        				         message.setText("Dear,"+order.getClient()+"\n"+"Your order is being processing. The details are  as follows.\n"
-		        				         +"OrderID:"+order.getID()+"\n"
-		        				         +"Total Price: $"+order.getPrice()+"\n"
-		        				         +"Order Date:"+order.getDatetime()+"\n"
-		        				         +"Order State: To be shipped\n"
-		        				         +"Payment Method:"+order.getPayment()+"\n"
-		        				         +"Delivery Address:"+order.getDelivery()+"\n");
-		        				         // 发送消息
-		        				         Transport.send(message);		        		
-		        				      }catch (MessagingException mex) {
-		        				         mex.printStackTrace();
-		        				      }
-		        			       //////////////////////////////////////////////////////////邮件发送完毕
-		        			       
-		        			   }
-		        			   
-	        			   }        			   
-	        			   
+	        				   out.writeUTF("True");//核查库存后判断是否弹出付款对话框
+	        				   out.flush();			        			   
+	        			   }
+	        				  		        			   	        			           			   	        			   
 	        		   }
 	        		   	        		   	        		   
 				} catch (IOException e) {
@@ -282,7 +271,184 @@ public class ServerThread implements Runnable {
 				}
         	   
            }
+           else if (accept.equals("SAVEORDER")){
+        	   try {
+        		   inBean = new ObjectInputStream(socket.getInputStream());
+        		   Map<String,Integer> computermap = (Map<String,Integer>) inBean.readObject();
+        		   Map<String,Integer> componentmap = (Map<String,Integer>) inBean.readObject();	       		   
+				inBean = new ObjectInputStream(socket.getInputStream());
+				Order order = (Order)inBean.readObject();
+				List<Order_detial> detiallist = (List<Order_detial>) inBean.readObject(); 
+				if(DBAddorder.save(order,detiallist)){
+				   out.writeUTF("True");
+				   out.flush();	
+				   Iterator<Map.Entry<String, Integer>> entries = computermap.entrySet().iterator();
+    			   while(entries.hasNext()){
+    				   Entry<String, Integer> entry = entries.next();
+    				   DBCheckstock.modifycpr(entry.getKey(),entry.getValue());
+    			   	}//电脑库存修改
+    			   Iterator<Map.Entry<String, Integer>> entries2 = componentmap.entrySet().iterator();
+    			   while (entries2.hasNext()){
+    				   Entry<String, Integer> entry2 = entries2.next();
+    				   DBCheckstock.modifycpt(entry2.getKey(),entry2.getValue());
+    			   }//配件库存修改
+    			   System.out.println("库存修改完毕");	  			
+				  ////////////////////////////////////////////////////////////////////////////
+				   //邮件发送订单详情
+				   	// 收件人电子邮箱
+				   	
+				      String to = DBClientLogin.getEmail(order.getClient());
+				      // 发件人电子邮箱
+				      String from = "computer.company.pineapple@gamil.com";
+				      // 指定发送邮件的主机为 localhost
+				      String host = "smtp.gmail.com";  // 邮件服务器
+				      // 获取系统属性
+				      Properties properties = System.getProperties();
+				      // 设置邮件服务器
+				      properties.setProperty("mail.smtp.host", host);
+				      properties.put("mail.smtp.auth", "true");
+				      properties.put("mail.smtp.starttls.enable", "true");
+				      properties.put("mail.smtp.port", "587");
+				      // 获取默认session对象
+				      Session session = Session.getDefaultInstance(properties,new Authenticator(){
+					    public PasswordAuthentication getPasswordAuthentication()
+					    {
+					     return new PasswordAuthentication("computer.company.pineapple@gmail.com", "pineapple123456"); //发件人邮件用户名、密码
+					    }
+					   });
+				      try{
+				         // 创建默认的 MimeMessage 对象
+				         MimeMessage message = new MimeMessage(session);
+				         // Set From: 头部头字段
+				         message.setFrom(new InternetAddress(from));
+				         // Set To: 头部头字段
+				         message.addRecipient(Message.RecipientType.TO,
+				                                  new InternetAddress(to));
+				         // Set Subject: 头部头字段
+				         message.setSubject("Order Confirmation");
+				         String orderdetial = getmessage(detiallist);
+				         // 设置消息体
+				         message.setText("Dear "+order.getClient()+"，\n"+"Your order is being processing. The details are  as follows.\n"
+				         +"OrderID: "+order.getID()+"\n"
+				         +"Total Price: $"+order.getPrice()+"\n"
+				         +"Order Date: "+order.getDatetime()+"\n"
+				         +"Order State: To be shipped\n"
+				         +"Payment Method: "+order.getPayment()+"\n"
+				         +"Delivery Address: "+order.getDelivery()+"\n"
+						+orderdetial
+				         );
+				         
+				         // 发送消息
+				         Transport.send(message);		        		
+				      }catch (MessagingException mex) {
+				         mex.printStackTrace();
+				      }
+			       //////////////////////////////////////////////////////////邮件发送完毕		        			       
+			   }      	   
+			} catch (IOException | ClassNotFoundException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}			   
+           }
            //////////////////////////////////////////////////////////////////////////////
+           else if(accept.equals("ARRIVEORDER")){
+        	   System.out.println("接收到ARRIVEORDER");
+        	   try {
+					in = new DataInputStream(socket.getInputStream());
+					String id_order = in.readUTF();
+					DBAddorder.ChangeOrderState(id_order, "2");	
+					out = new DataOutputStream(socket.getOutputStream());
+					out.writeUTF("True");
+				    out.flush();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+           }
+           else if(accept.equals("CANCELORDER")){
+        	   System.out.println("接收到CANCELORDER");
+        	   try {
+					in = new DataInputStream(socket.getInputStream());
+					String id_order = in.readUTF();
+					DBAddorder.ChangeOrderState(id_order, "3");	
+					//////////////////////////////////////////////库存补偿///////////////////
+					List<Order_detial> detiallist = DBAddorder.getDetiallist(id_order);
+					Map<String,Integer> computermap = new HashMap<String,Integer>();
+					  Map<String,Integer> componentmap = new HashMap<String,Integer>();
+					Iterator iterator = detiallist.iterator();
+					while(iterator.hasNext()){
+						Order_detial detial = (Order_detial) iterator.next();
+						int p =computermap.getOrDefault(detial.getcomputerID(), 0);
+						if(p==0){computermap.put(detial.getcomputerID(), detial.getnumber());}
+						else{computermap.put(detial.getcomputerID(), p+detial.getnumber());}
+						p = componentmap.getOrDefault(detial.getcolor(), 0);
+						if(p==0){componentmap.put(detial.getcolor(),detial.getnumber());}
+						else{componentmap.put(detial.getcolor(), p+detial.getnumber());}
+						p = componentmap.getOrDefault(detial.getsize(), 0);
+						if(p==0){componentmap.put(detial.getsize(),detial.getnumber());}
+						else{componentmap.put(detial.getsize(), p+detial.getnumber());}
+						p = componentmap.getOrDefault(detial.getstock(), 0);
+						if(p==0){componentmap.put(detial.getstock(),detial.getnumber());}
+						else{componentmap.put(detial.getstock(), p+detial.getnumber());}
+						p = componentmap.getOrDefault(detial.getmemory(), 0);
+						if(p==0){componentmap.put(detial.getmemory(),detial.getnumber());}
+						else{componentmap.put(detial.getmemory(), p+detial.getnumber());}
+						p = componentmap.getOrDefault(detial.getgraphics(), 0);
+						if(p==0){componentmap.put(detial.getgraphics(),detial.getnumber());}
+						else{componentmap.put(detial.getgraphics(), p+detial.getnumber());}
+						p = componentmap.getOrDefault(detial.getprocessor(), 0);
+						if(p==0){componentmap.put(detial.getprocessor(),detial.getnumber());}
+						else{componentmap.put(detial.getprocessor(), p+detial.getnumber());}
+					}
+					System.out.println(computermap);
+					System.out.println(componentmap);
+					Iterator<Map.Entry<String, Integer>> entries = computermap.entrySet().iterator();
+	    			   while(entries.hasNext()){
+	    				   Entry<String, Integer> entry = entries.next();
+	    				   DBCheckstock.modifybackcpr(entry.getKey(),entry.getValue());
+	    			   	}//电脑库存修改
+	    			   Iterator<Map.Entry<String, Integer>> entries2 = componentmap.entrySet().iterator();
+	    			   while (entries2.hasNext()){
+	    				   Entry<String, Integer> entry2 = entries2.next();
+	    				   DBCheckstock.modifybackcpt(entry2.getKey(),entry2.getValue());
+	    			   }//配件库存修改
+					out = new DataOutputStream(socket.getOutputStream());
+					out.writeUTF("True");
+				    out.flush();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+           }
+           else if(accept.equals("DELETEORDER")){
+        	   System.out.println("接收到DELETEORDER");
+        	   try {
+					in = new DataInputStream(socket.getInputStream());
+					String id_order = in.readUTF();
+					DBAddorder.DeleteOrder(id_order);	//删除对应订单
+					out = new DataOutputStream(socket.getOutputStream());
+					out.writeUTF("True");
+				    out.flush();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+           }
+           else if(accept.equals("DELETEBAG")){
+        	   System.out.println("接收到DELETEBAG");
+        	   try {
+					in = new DataInputStream(socket.getInputStream());
+					int id_bag = in.readInt();
+					DBCheckBag.DeleteBag(id_bag);
+					out = new DataOutputStream(socket.getOutputStream());
+					out.writeUTF("True");
+				    out.flush();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+           }
+           ///////////////////////////////////////////////////////////////////////////
            //搜索可选配件
            else if (accept.equals("COMBOCOLOR")){
         	   List<String> itemlist = DBCheckcomponent.getComponentNameList("Color");
@@ -376,5 +542,46 @@ public class ServerThread implements Runnable {
         	             	
            }  
        }      
-    }  
+    }
+
+	private String getmessage(List<Order_detial> detiallist) {
+		Iterator iterator = detiallist.iterator();
+		String content = "";
+		while(iterator.hasNext()){
+			Order_detial detial = (Order_detial) iterator.next();
+			String idcomputer = flushLeft(' ',12 , detial.getcomputerID());
+			String price = flushLeft(' ',8 , "$"+Double.toString(detial.getprice()));
+			String color = flushLeft(' ',5 , detial.getcolor());
+			String size = flushLeft(' ',5 , detial.getsize());
+			String stock = flushLeft(' ',5 , detial.getstock());
+			String memory = flushLeft(' ',8 , detial.getmemory());
+			String graphics = flushLeft(' ',8 , detial.getgraphics());
+			String processor = flushLeft(' ',10 , detial.getprocessor());
+			String number = flushLeft(' ',8 , "*"+Integer.toString(detial.getnumber()));
+			content = content+ idcomputer + price+number+ color+ size+ stock+memory+ graphics+processor+"\n";					
+		}
+		return content;
+	} 
+	 /* c 要填充的字符    
+   *  length 填充后字符串的总长度    
+   *  content 要格式化的字符串   
+   *  格式化字符串，左对齐 
+   * */  
+		public String flushLeft(char c, long length, String content){             
+		      String str = "";     
+		      long cl = 0;    
+		      String cs = "";     
+		      if (content.length() > length){     
+		           str = content;     
+		      }else{    
+		           for (int i = 0; i < length - content.length(); i++){     
+		               cs = cs + c;     
+		           }  
+		         }  
+		       str = content + cs;      
+		       return str;      
+		  }   
 } 
+ 
+  
+   
